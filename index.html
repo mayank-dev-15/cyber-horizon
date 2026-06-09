@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyber Horizon</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;height:100vh;font-family:'Segoe UI',system-ui,sans-serif}
+canvas{display:block;width:100%;height:100vh}
+#ui{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;background:rgba(5,0,15,.8);padding:10px 16px;border-radius:12px;backdrop-filter:blur(12px);border:1px solid rgba(255,0,128,.2)}
+#ui button{padding:6px 14px;border:1px solid rgba(255,0,128,.3);background:rgba(255,0,128,.08);color:#f0a;border-radius:8px;cursor:pointer;font-size:.7rem;transition:all .2s}
+#ui button:hover{background:rgba(255,0,128,.2);border-color:rgba(255,0,128,.5)}
+#ui button.active{background:rgba(0,255,200,.15);border-color:rgba(0,255,200,.4);color:#0fc}
+#stats{position:fixed;top:12px;right:12px;font-size:.65rem;color:rgba(150,100,200,.5)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+<button id="bRain" class="active">🌧 Rain</button>
+<button id="bCars">🚗 Cars</button>
+<button id="bAudio">🔊 Audio</button>
+<button id="bGlitch">⚡ Glitch</button>
+</div>
+<div id="stats">FPS: <span id="fps">0</span></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W,H;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;initBuildings()}
+window.addEventListener('resize',resize);
+
+// ── Buildings ──
+let buildings=[];
+function initBuildings(){
+  buildings=[];const count=Math.ceil(W/30);
+  for(let i=0;i<count;i++){
+    const bw=15+Math.random()*35,bh=80+Math.random()*H*.55;
+    buildings.push({x:i*30,y:H-bh,w:bw,h:bh,hue:Math.random()*60+180,windows:[],signs:[]});
+    // windows
+    for(let wy=10;wy<bh-10;wy+=12+(i%3)*4)
+      for(let wx=4;wx<bw-4;wx+=8+(i%2)*3)
+        if(Math.random()>.3)buildings[buildings.length-1].windows.push({x:wx,y:wy,on:Math.random()>.4,w:Math.min(5,bw-wx-2),h:6,flicker:Math.random()>.8});
+    // neon signs
+    if(Math.random()>.6){const s=['CYBER','NEON','HACK','VOID','PULSE','DATA','FLUX','GRID'];buildings[buildings.length-1].signs.push({text:s[Math.floor(Math.random()*s.length)],y:bh*.2+Math.random()*.3*bh,hue:Math.random()*360,size:6+Math.random()*8})}
+  }
+}
+
+// ── Rain ──
+let raindrops=[],rainOn=true;
+function initRain(){raindrops=[];for(let i=0;i<800;i++)raindrops.push({x:Math.random()*W,y:Math.random()*H,l:10+Math.random()*20,s:4+Math.random()*8,opacity:.1+Math.random()*.3})}
+
+// ── Cars ──
+let cars=[],carsOn=false;
+class Car{
+  constructor(){this.reset(true)}
+  reset(init=false){this.x=init?Math.random()*W:-50;this.y=H-40-Math.random()*60;this.w=30+Math.random()*20;this.h=10+Math.random()*6;this.speed=2+Math.random()*5;this.hue=Math.random()*360;this.tailLight=Math.random()>.5}
+  update(){this.x+=this.speed;if(this.x>W+60)this.reset()}
+  draw(){
+    ctx.fillStyle=`hsl(${this.hue},80%,15%)`;
+    ctx.fillRect(this.x,this.y,this.w,this.h);
+    ctx.fillStyle=`hsl(${this.hue},60%,8%)`;
+    ctx.fillRect(this.x+this.w*.15,this.y-5,this.w*.7,5);
+    // headlights
+    ctx.fillStyle=`rgba(255,255,200,${.3+Math.random()*.1})`;
+    ctx.beginPath();ctx.arc(this.x+this.w+2,this.y+this.h/2,3,0,Math.PI*2);ctx.fill();
+    if(this.tailLight){ctx.fillStyle=`rgba(255,0,0,${.5+Math.random()*.3})`;ctx.beginPath();ctx.arc(this.x-2,this.y+this.h/2,2,0,Math.PI*2);ctx.fill()}
+  }
+}
+
+// ── Flying cars ──
+let flyers=[];
+class Flyer{
+  constructor(){this.x=Math.random()*W;this.y=50+Math.random()*(H*.4);this.vx=(Math.random()-.5)*3;this.vy=(Math.random()-.5)*1;this.hue=Math.random()*360;this.size=8+Math.random()*12;this.phase=Math.random()*Math.PI*2}
+  update(dt){this.phase+=dt*3;this.x+=this.vx;this.y+=Math.sin(this.phase)*.5;if(this.x<-50)this.x=W+50;if(this.x>W+50)this.x=-50}
+  draw(){
+    ctx.save();ctx.translate(this.x,this.y);
+    ctx.fillStyle=`hsl(${this.hue},90%,60%)`;ctx.beginPath();ctx.ellipse(0,0,this.size,this.size*.4,0,0,Math.PI*2);ctx.fill();
+    // glow
+    ctx.shadowColor=`hsl(${this.hue},100%,60%)`;ctx.shadowBlur=15;
+    ctx.fillStyle=`hsl(${this.hue},100%,80%)`;ctx.beginPath();ctx.ellipse(0,0,this.size*.3,.15,0,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+    // trail
+    for(let i=1;i<=5;i++){ctx.fillStyle=`hsla(${this.hue},80%,50%,${.3-i*.06})`;ctx.beginPath();ctx.arc(-this.vx*i*3,0,this.size*.3-i*.04,0,Math.PI*2);ctx.fill()}
+    ctx.restore();
+  }
+}
+
+// ── Audio reactive ──
+let audioOn=false,analyser,dataArray,audioCtx;
+async function toggleAudio(){
+  if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext);const stream=await navigator.mediaDevices.getUserMedia({audio:true});const src=audioCtx.createMediaStreamSource(stream);analyser=audioCtx.createAnalyser();analyser.fftSize=256;src.connect(analyser);dataArray=new Uint8Array(analyser.frequencyBinCount)}
+  audioOn=!audioOn;
+}
+
+// ── Glitch ──
+let glitchOn=false,glitchTimer=0;
+
+// ── Stars ──
+let stars=[];
+function initStars(){stars=[];for(let i=0;i<200;i++)stars.push({x:Math.random()*W,y:Math.random()*.4*H,r:Math.random()*1.5,brightness:Math.random()})}
+
+// ── Main loop ──
+let fc=0,lt=performance.now();
+function loop(){
+  const now=performance.now(),dt=(now-lt)/1000;lt=now;fc++;
+  // Sky gradient
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#020010');grad.addColorStop(.4,'#0a0020');grad.addColorStop(.7,'#150030');grad.addColorStop(1,'#0f0018');
+  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+  // Stars
+  for(const s of stars){const twinkle=Math.sin(now*.002+s.x)*.3+.4;ctx.fillStyle=`rgba(200,200,255,${s.brightness*twinkle})`;ctx.beginPath();ctx.arc(s.x,s.y*s.brightness, s.r,0,Math.PI*2);ctx.fill()}
+  // Moon
+  ctx.fillStyle='rgba(200,180,255,.08)';ctx.beginPath();ctx.arc(W*.8,H*.12,60,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(220,200,255,.12)';ctx.beginPath();ctx.arc(W*.8,H*.12,40,0,Math.PI*2);ctx.fill();
+  // Buildings
+  for(const b of buildings){
+    ctx.fillStyle=`hsl(${b.hue},30%,${8+Math.random()*2}%)`;
+    ctx.fillRect(b.x,b.y,b.w,b.h);
+    // Windows
+    for(const w of b.windows){
+      if(w.flicker&&Math.random()>.02)w.on=!w.on;
+      if(w.on){const flicker=w.flicker?Math.random()*.3+.7:1;ctx.fillStyle=`rgba(255,220,100,${.6*flicker})`;ctx.fillRect(b.x+w.x,b.y+w.y,w.w,w.h)}
+    }
+    // Neon signs
+    for(const s of b.signs){
+      ctx.save();ctx.font=`bold ${s.size}px monospace`;
+      const pulse=Math.sin(now*.003+s.y)*.3+.7;
+      ctx.shadowColor=`hsl(${s.hue},100%,60%)`;ctx.shadowBlur=12*pulse;
+      ctx.fillStyle=`hsl(${s.hue},100%,${55*pulse}%)`;
+      ctx.fillText(s.text,b.x+2,b.y+s.y);ctx.shadowBlur=0;ctx.restore();
+    }
+    // Edge glow
+    ctx.strokeStyle=`hsla(${b.hue},60%,40%,.15)`;ctx.lineWidth=1;ctx.strokeRect(b.x,b.y,b.w,b.h);
+  }
+  // Ground
+  ctx.fillStyle='#080010';ctx.fillRect(0,H-20,W,20);
+  ctx.strokeStyle='rgba(100,50,200,.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,H-20);ctx.lineTo(W,H-20);ctx.stroke();
+  // Road reflections
+  for(let i=0;i<W;i+=40){ctx.fillStyle=`rgba(255,0,128,${.02+Math.random()*.02})`;ctx.fillRect(i,H-18,20,2)}
+  // Rain
+  if(rainOn){for(const r of raindrops){ctx.strokeStyle=`rgba(100,150,255,${r.opacity})`;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.lineTo(r.x+1,r.y+r.l);ctx.stroke();r.y+=r.s;r.x+=.5;if(r.y>H){r.y=-r.l;r.x=Math.random()*W}}}
+  // Cars
+  if(carsOn){for(const c of cars){c.update();c.draw()}}
+  // Flyers
+  for(const f of flyers){f.update(dt);f.draw()}
+  // Audio visualizer
+  if(audioOn&&analyser){analyser.getByteFrequencyData(dataArray);const bw=W/dataArray.length;ctx.globalAlpha=.6;for(let i=0;i<dataArray.length;i++){const h=dataArray[i]*H/500;const hue=i/dataArray.length*360;ctx.fillStyle=`hsla(${hue},100%,50%,.3)`;ctx.fillRect(i*bw,H-h,bw-1,h)}}ctx.globalAlpha=1}
+  // Glitch effect
+  if(glitchOn){glitchTimer+=dt;if(glitchTimer>.1){glitchTimer=0;if(Math.random()>.5){const gy=Math.random()*H,gw=20+Math.random()*100,gh=2+Math.random()*8;ctx.drawImage(canvas,0,gy,W,gh,Math.random()*20-10,gy,W,gh);ctx.fillStyle=`rgba(${Math.random()*255},${Math.random()*255},${Math.random()*255},${.05+Math.random()*.1})`;ctx.fillRect(0,gy,gw,gh)}}}
+  // Scanlines
+  ctx.fillStyle='rgba(0,0,0,.03)';for(let y=0;y<H;y+=3)ctx.fillRect(0,y,W,1);
+  // Vignette
+  const vg=ctx.createRadialGradient(W/2,H/2,W*.3,W/2,H/2,W*.8);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+  requestAnimationFrame(loop);
+}
+
+// ── Init ──
+resize();initRain();initStars();
+for(let i=0;i<8;i++)cars.push(new Car());
+for(let i=0;i<12;i++)flyers.push(new Flyer());
+loop();
+setInterval(()=>{document.getElementById('fps').textContent=fc;fc=0},1000);
+
+// ── UI ──
+document.getElementById('bRain').onclick=e=>{rainOn=!rainOn;e.target.classList.toggle('active',rainOn)};
+document.getElementById('bCars').onclick=e=>{carsOn=!carsOn;e.target.classList.toggle('active',carsOn)};
+document.getElementById('bAudio').onclick=e=>{toggleAudio();e.target.classList.toggle('active',audioOn)};
+document.getElementById('bGlitch').onclick=e=>{glitchOn=!glitchOn;e.target.classList.toggle('active',glitchOn)};
+</script>
+</body>
+</html>
